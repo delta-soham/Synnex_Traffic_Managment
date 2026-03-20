@@ -7,14 +7,12 @@ Sensors  : 2× VL53L0X ToF (speed detection)
            2× IR sensor  (vehicle counting / trigger)
 Lights   : 2× 3-LED traffic light (Red / Yellow / Green)
 Camera   : Pi Camera Module (MJPEG live stream)
-Gate     : Relay (closes on speed violation)
-Buzzer   : Alert on speed violation
 
 Signal Logic
 ━━━━━━━━━━━━
 PRIMARY  — After CAR_TRIGGER_COUNT cars pass the active IR → switch signal
 FALLBACK — If no cars on EITHER road for ROUND_ROBIN_SEC → switch anyway
-EMERGENCY— Speed > SPEED_LIMIT_KMPH → both RED, gate closes 12 s
+EMERGENCY— Speed > SPEED_LIMIT_KMPH → both roads RED for 10 s
 
 GPIO (BCM) pin map  ← physical pin numbers in README
 ━━━━━━━━━━━━━━━━━━
@@ -24,8 +22,6 @@ ToF SDA     → GPIO 2 (I²C)   ToF SCL     → GPIO 3 (I²C)
 Road-1 RED  → GPIO 5         Road-2 RED  → GPIO 19
 Road-1 YEL  → GPIO 6         Road-2 YEL  → GPIO 26
 Road-1 GRN  → GPIO 13        Road-2 GRN  → GPIO 21
-Gate relay  → GPIO 20
-Buzzer      → GPIO 16
 """
 
 import time
@@ -76,8 +72,6 @@ ROAD1_GREEN   = 13
 ROAD2_RED     = 19
 ROAD2_YELLOW  = 26
 ROAD2_GREEN   = 21
-GATE_PIN      = 20
-BUZZER_PIN    = 16
 
 # ── Signal trigger ────────────────────────────
 CAR_TRIGGER_COUNT = 5    # cars on the GREEN road → switch signal
@@ -117,7 +111,7 @@ def setup_gpio():
     GPIO.setup(TOF_XSHUT2, GPIO.OUT)
     for p in [ROAD1_RED, ROAD1_YELLOW, ROAD1_GREEN,
               ROAD2_RED, ROAD2_YELLOW, ROAD2_GREEN,
-              GATE_PIN, BUZZER_PIN]:
+              ]:
         GPIO.setup(p, GPIO.OUT)
         GPIO.output(p, GPIO.LOW)
     log.info("GPIO ready")
@@ -333,7 +327,6 @@ state = {
               "count":0,"phase_count":0,"per_min":0,"vehicle":False},
     "road2": {"signal":"red","speed":0.0,"distance":0.0,
               "count":0,"phase_count":0,"per_min":0,"vehicle":False},
-    "gate":       "open",
     "alert":      "",
     "phase":      "road1_green",
     "trigger":    "—",
@@ -363,7 +356,7 @@ class TrafficController(threading.Thread):
       2. BOTH roads have seen zero cars AND
          ROUND_ROBIN_SEC has elapsed            → "round_robin" trigger
       3. MAX_GREEN_SEC elapsed regardless       → "max hold"   trigger
-      4. Speed violation on either ToF          → emergency red + gate close
+      4. Speed violation on either ToF          → emergency red
     """
 
     def __init__(self, l1, l2, ir1, ir2, tof1, tof2):
@@ -372,28 +365,10 @@ class TrafficController(threading.Thread):
         self.ir1 = ir1; self.ir2 = ir2
         self.tof1= tof1;self.tof2= tof2
         self._running     = True
-        self._gate_closed = False
         self._emergency   = False
 
     # ─── helpers ─────────────────────────────
-    def _close_gate(self, reason):
-        if self._gate_closed: return
-        self._gate_closed = True
-        GPIO.output(GATE_PIN, GPIO.HIGH)
-        self._buzz(1.5)
-        ust(gate="closed", alert=reason)
-        log.warning(f"GATE CLOSED — {reason}")
-        threading.Timer(12.0, self._open_gate).start()
 
-    def _open_gate(self):
-        self._gate_closed = False
-        GPIO.output(GATE_PIN, GPIO.LOW)
-        ust(gate="open", alert="")
-        log.info("Gate opened")
-
-    def _buzz(self, secs=0.5):
-        def _b(): GPIO.output(BUZZER_PIN,1); time.sleep(secs); GPIO.output(BUZZER_PIN,0)
-        threading.Thread(target=_b, daemon=True).start()
 
     def _poll(self):
         """Update sensor readings. Returns True on speed violation."""
@@ -410,7 +385,8 @@ class TrafficController(threading.Thread):
             }})
             if tof.speed_kmph > SPEED_LIMIT_KMPH:
                 self._emergency = True
-                self._close_gate(f"Speed {tof.speed_kmph:.0f} km/h on Road {rid}!")
+                ust(alert=f"Speed {tof.speed_kmph:.0f} km/h on Road {rid}!")
+                log.warning(f"SPEED VIOLATION Road {rid}: {tof.speed_kmph:.0f} km/h")
                 viol = True
         return viol
 
@@ -576,14 +552,6 @@ nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;
   border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-size:13px}
 .info-lbl{color:var(--muted);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;white-space:nowrap}
 .info-val{font-family:'Space Mono',monospace;color:var(--accent)}
-.gate-card{grid-column:1/3;display:flex;align-items:center;gap:16px;
-  padding:16px 22px;border-radius:14px;border:1px solid;transition:.4s}
-.gate-card.open{background:rgba(0,255,136,.05);border-color:var(--green);color:var(--green)}
-.gate-card.closed{background:rgba(255,51,85,.1);border-color:var(--red);color:var(--red);animation:shake .3s}
-@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
-.gate-icon{font-size:28px}
-.gate-state{font-weight:800;font-size:17px}
-.gate-sub{font-size:12px;opacity:.65;margin-top:2px}
 .alert-banner{grid-column:1/3;padding:12px 20px;border-radius:12px;
   background:rgba(255,51,85,.12);border:1px solid var(--red);
   color:var(--red);font-size:14px;font-weight:700;align-items:center;gap:10px;display:none}
@@ -594,7 +562,7 @@ nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;
   background:rgba(0,0,0,.65);padding:4px 10px;border-radius:6px;font-family:'Space Mono',monospace;font-size:10px}
 .cam-offline{display:none;padding:60px;text-align:center;color:var(--muted);font-size:14px}
 @media(max-width:680px){.grid{grid-template-columns:1fr;padding:14px}
-  .cam-card,.gate-card,.alert-banner,.info-row{grid-column:1}}
+  .cam-card,.alert-banner,.info-row{grid-column:1}}
 </style>
 </head>
 <body>
@@ -606,13 +574,6 @@ nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;
 <div class="grid">
   <div class="alert-banner" id="alert-bar"><span>⚠</span><span id="alert-txt"></span></div>
 
-  <div class="gate-card open" id="gate-card">
-    <div class="gate-icon" id="gate-icon">🔓</div>
-    <div>
-      <div class="gate-state" id="gate-state">Railway Gate — OPEN</div>
-      <div class="gate-sub"  id="gate-sub">System nominal</div>
-    </div>
-  </div>
 
   <!-- trigger info -->
   <div class="info-row">
@@ -712,11 +673,6 @@ function poll(){
       document.getElementById(`r${n}-vpm`).textContent=r.per_min;
       document.getElementById(`r${n}-dst`).textContent=r.distance>0?r.distance.toFixed(0):'—';
       setBar(n,r.phase_count,d.car_target);});
-    const gc=document.getElementById('gate-card');
-    gc.className='gate-card '+d.gate;
-    document.getElementById('gate-icon').textContent=d.gate==='closed'?'🔒':'🔓';
-    document.getElementById('gate-state').textContent='Railway Gate — '+d.gate.toUpperCase();
-    document.getElementById('gate-sub').textContent=d.gate==='closed'?'Speed violation!':'System nominal';
     const ab=document.getElementById('alert-bar');
     if(d.alert){ab.style.display='flex';document.getElementById('alert-txt').textContent=d.alert;}
     else{ab.style.display='none';}
