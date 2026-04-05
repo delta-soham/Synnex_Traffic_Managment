@@ -1,0 +1,18 @@
+2026-04-05 23:51:47,811 [INFO] Synnex.GPIO: GPIO setup (simulated)
+2026-04-05 23:51:47,830 [INFO] Synnex.Main: Traffic lights initialised (both RED)
+2026-04-05 23:51:47,831 [INFO] Synnex.Main: Vehicle detector ready
+2026-04-05 23:51:47,833 [WARNING] Synnex.Camera: Picamera2 not available — trying OpenCV VideoCapture
+2026-04-05 23:51:47,833 [INFO] Synnex.Main: Camera thread started
+2026-04-05 23:51:47,862 [INFO] Synnex.DataLogger: Database tables ready
+2026-04-05 23:51:47,863 [INFO] Synnex.DataLogger: DataLogger initialised: D:\projects\Synnex\traffic_data.db
+2026-04-05 23:51:47,868 [INFO] Synnex.Controller: Traffic Controller started
+2026-04-05 23:51:47,869 [INFO] Synnex.Main: Traffic controller started (AUTOMATIC mode)
+2026-04-05 23:51:47,869 [INFO] Synnex.Speed: Speed Detector started
+2026-04-05 23:51:47,870 [INFO] Synnex.Main: Speed detector started
+2026-04-05 23:51:47,892 [INFO] Synnex.Main: Periodic logger started (every 30s)
+2026-04-05 23:51:47,937 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.31.96:5000
+2026-04-05 23:51:47,938 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-04-05 23:51:48,111 [INFO] Synnex.Camera: OpenCV camera started (fallback)
