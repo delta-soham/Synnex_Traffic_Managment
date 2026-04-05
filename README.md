@@ -90,7 +90,7 @@ Synnex/
 ├── dashboard.py            ← Flask web dashboard
 ├── data_logger.py          ← SQLite data persistence
 ├── requirements.txt        ← Python dependencies
-├── install.sh              ← One-command Raspberry Pi setup
+├── setup.sh                ← One-command setup (venv + install + auto-start)
 ├── traffic_data.db         ← SQLite database (auto-created)
 └── README.md               ← This file
 ```
@@ -169,28 +169,35 @@ In settings: enable SSH, set Wi-Fi SSID + password.
 scp -r ./* pi@<PI_IP>:~/synnex/
 ```
 
-### 3. Run the installer
+### 3. Run setup (one command does everything)
 
 ```bash
 ssh pi@<PI_IP>
 cd ~/synnex
-sudo bash install.sh
+chmod +x setup.sh
+sudo bash setup.sh
 ```
 
-The installer will:
+This single script will:
 - Enable the camera interface
 - Install system packages (`python3-picamera2`, `python3-opencv`)
-- Create a Python venv at `~/synnex/venv/` (with system site-packages)
+- Create a Python venv at `~/synnex/venv/` (with `--system-site-packages`)
 - Install `flask`, `RPi.GPIO`, `numpy` into the venv
+- Verify all imports work
 - Register and start the `synnex-traffic` systemd service
+- **Auto-start on every boot**
 
-### 4. Open the dashboard
+### 4. Reboot (first-time only)
+
+```bash
+sudo reboot
+```
+
+### 5. Open the dashboard
 
 ```
 http://<PI_IP>:5000
 ```
-
-> ⚠ **First-time install**: reboot the Pi to enable the camera: `sudo reboot`
 
 ---
 
@@ -200,13 +207,14 @@ http://<PI_IP>:5000
 sudo systemctl status  synnex-traffic    # check status
 sudo systemctl restart synnex-traffic    # restart
 sudo systemctl stop    synnex-traffic    # stop
-sudo journalctl -u synnex-traffic -f     # live log stream
+sudo journalctl -u synnex-traffic -f    # live log stream
 ```
 
 ### Manual run (for development/testing)
 
 ```bash
-source ~/synnex/venv/bin/activate
+cd ~/synnex
+source venv/bin/activate
 python main.py
 python main.py --port 8080              # custom port
 python main.py --no-speed               # disable speed detection (saves CPU)
